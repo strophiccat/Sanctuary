@@ -17,10 +17,6 @@ using Sanctuary.Packet.Common.Extensions;
 using Sanctuary.UdpLibrary.Configuration;
 using Sanctuary.UdpLibrary.Enumerations;
 
-CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
-CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.InvariantCulture;
-Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
-Thread.CurrentThread.CurrentUICulture = CultureInfo.InvariantCulture;
 
 var builder = new HostBuilder();
 
