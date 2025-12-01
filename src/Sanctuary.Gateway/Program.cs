@@ -16,7 +16,6 @@ using Sanctuary.Gateway;
 using Sanctuary.UdpLibrary.Configuration;
 using Sanctuary.UdpLibrary.Enumerations;
 
-
 Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
 Thread.CurrentThread.CurrentUICulture = CultureInfo.InvariantCulture;
 
