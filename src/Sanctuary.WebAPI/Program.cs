@@ -13,6 +13,9 @@ using Sanctuary.WebAPI.Endpoints;
 using Sanctuary.WebAPI.Options;
 
 
+Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
+Thread.CurrentThread.CurrentUICulture = CultureInfo.InvariantCulture;
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.WebHost.UseUrls();
