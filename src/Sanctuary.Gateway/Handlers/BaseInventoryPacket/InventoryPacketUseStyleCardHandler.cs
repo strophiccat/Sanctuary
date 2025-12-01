@@ -186,6 +186,8 @@ public static class InventoryPacketUseStyleCardHandler
 
     private static string? GetModelCustomizationStringParam(int modelCustomizationId)
     {
+        if (modelCustomizationId == 0) return string.Empty;
+
         if (!_resourceManager.ModelCustomizationMappings.TryGetValue(modelCustomizationId, out var modelCustomization))
         {
             _logger.LogWarning("Unknown model customization mapping. {id}", modelCustomizationId);
