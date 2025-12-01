@@ -1,3 +1,5 @@
+using System.Globalization;
+
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.HttpLogging;
@@ -12,9 +14,8 @@ using Sanctuary.Database;
 using Sanctuary.WebAPI.Endpoints;
 using Sanctuary.WebAPI.Options;
 
-
-Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
-Thread.CurrentThread.CurrentUICulture = CultureInfo.InvariantCulture;
+CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
+CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.InvariantCulture;
 
 var builder = WebApplication.CreateBuilder(args);
 
