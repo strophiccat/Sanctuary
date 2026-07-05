@@ -1,11 +1,8 @@
-using System;
+﻿using System;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-using Sanctuary.Game;
-using Sanctuary.Gateway.Combat;
-using Sanctuary.Gateway.Services;
 using Sanctuary.Packet;
 using Sanctuary.Packet.Common.Attributes;
 
@@ -15,13 +12,11 @@ namespace Sanctuary.Gateway.Handlers;
 public static class PacketClientFinishedLoadingHandler
 {
     private static ILogger _logger = null!;
-    private static IResourceManager _resourceManager = null!;
 
     public static void ConfigureServices(IServiceProvider serviceProvider)
     {
         var loggerFactory = serviceProvider.GetRequiredService<ILoggerFactory>();
         _logger = loggerFactory.CreateLogger(nameof(PacketClientFinishedLoadingHandler));
-        _resourceManager = serviceProvider.GetRequiredService<IResourceManager>();
     }
 
     public static bool HandlePacket(GatewayConnection connection)
@@ -59,9 +54,6 @@ public static class PacketClientFinishedLoadingHandler
         }
 
         connection.Player.Zone.OnClientFinishedLoading(connection.Player);
-        CombatBootstrap.SendForActiveProfile(connection, _resourceManager, _logger);
-
-        ItemActionBarService.ReplayOwnedCarouselItemsThroughShopCompletion(connection, _resourceManager, _logger);
 
         return true;
     }

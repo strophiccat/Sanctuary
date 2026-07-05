@@ -12,7 +12,6 @@ using Sanctuary.Game;
 using Sanctuary.Packet;
 using Sanctuary.Packet.Common;
 using Sanctuary.Packet.Common.Attributes;
-using Sanctuary.Packet.Common.Chat;
 
 namespace Sanctuary.Gateway.Handlers;
 
@@ -42,41 +41,23 @@ public static class CommandPacketIgnoreRequestHandler
 
         _logger.LogTrace("Received {name} packet. ( {packet} )", nameof(CommandPacketIgnoreRequest), packet);
 
+
         using var dbContext = _dbContextFactory.CreateDbContext();
 
         var dbCharacterToIgnore = dbContext.Characters.FirstOrDefault(x => x.FullName == packet.Name.FullName);
 
         if (dbCharacterToIgnore is null)
-        {
-            SendSystemMessage(connection, "Player not found.");
             return true;
-        }
 
-        var ignoredCharacterGuid = GuidHelper.GetPlayerGuid(dbCharacterToIgnore.Id);
-        _zoneManager.TryGetPlayer(ignoredCharacterGuid, out var playerToIgnore);
-
-        var requesterCharacterId = GuidHelper.GetPlayerId(connection.Player.Guid);
-        var targetCharacterId = dbCharacterToIgnore.Id;
+        if (!_zoneManager.TryGetPlayer(GuidHelper.GetPlayerGuid(dbCharacterToIgnore.Id), out var playerToIgnore))
+            return true;
 
         if (packet.Ignore)
         {
-            if (connection.Player.Ignores.Any(x => x.Guid == ignoredCharacterGuid))
-            {
-                SendSystemMessage(connection, "That player is already ignored.");
+            if (connection.Player.Ignores.Any(x => x.Guid == playerToIgnore.Guid))
                 return true;
-            }
 
-            var areFriends = dbContext.Friends.Any(x =>
-                (x.CharacterId == requesterCharacterId && x.FriendCharacterId == targetCharacterId) ||
-                (x.CharacterId == targetCharacterId && x.FriendCharacterId == requesterCharacterId));
-
-            if (areFriends)
-            {
-                SendSystemMessage(connection, "You cannot ignore a player on your friends list.");
-                return true;
-            }
-
-            var dbCharacter = dbContext.Characters.FirstOrDefault(x => x.Id == requesterCharacterId);
+            var dbCharacter = dbContext.Characters.FirstOrDefault(x => x.Id == GuidHelper.GetPlayerId(connection.Player.Guid));
 
             if (dbCharacter is null)
                 return true;
@@ -92,8 +73,8 @@ public static class CommandPacketIgnoreRequestHandler
 
             var ignoreData = new IgnoreData
             {
-                Guid = ignoredCharacterGuid,
-                Name = dbCharacterToIgnore.FullName
+                Guid = playerToIgnore.Guid,
+                Name = playerToIgnore.Name.FullName
             };
 
             connection.Player.Ignores.Add(ignoreData);
@@ -108,34 +89,25 @@ public static class CommandPacketIgnoreRequestHandler
         else
         {
             var dbIgnoreToRemove = dbContext.Ignores.Where(x =>
-                x.CharacterId == requesterCharacterId &&
-                x.IgnoreCharacterId == targetCharacterId);
+                x.CharacterId == GuidHelper.GetPlayerId(connection.Player.Guid) &&
+                x.IgnoreCharacterId == dbCharacterToIgnore.Id);
 
             if (dbIgnoreToRemove.ExecuteDelete() <= 0)
-            {
-                SendSystemMessage(connection, "That player is not on your ignore list.");
                 return true;
-            }
 
-            connection.Player.Ignores.RemoveAll(x => x.Guid == ignoredCharacterGuid);
+            connection.Player.Ignores.RemoveAll(x => x.Guid == playerToIgnore.Guid);
+
+            if (dbContext.SaveChanges() <= 0)
+                return true;
 
             var ignoreRemovePacket = new IgnoreRemovePacket
             {
-                Guid = ignoredCharacterGuid
+                Guid = playerToIgnore.Guid
             };
 
             connection.SendTunneled(ignoreRemovePacket);
         }
 
         return true;
-    }
-
-    private static void SendSystemMessage(GatewayConnection connection, string message)
-    {
-        connection.Player.SendTunneled(new PacketChat
-        {
-            Channel = ChatChannel.System,
-            Message = message
-        });
     }
 }

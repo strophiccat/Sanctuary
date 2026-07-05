@@ -1,4 +1,5 @@
-﻿using System;
+using System;
+using System.Numerics;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -29,8 +30,8 @@ public static class PacketZoneSafeTeleportRequestHandler
 
         _logger.LogTrace("Received {name} packet. ( {packet} )", nameof(PacketZoneSafeTeleportRequest), packet);
 
-        var position = new System.Numerics.Vector4(-1414.636f, -27.631f, 351.567f, 1f);
-        var rotation = new System.Numerics.Quaternion(0f, 0f, 0f, 0f);
+        var position = new Vector4(-1414.636f, -27.631f, 351.567f, 1f);
+        var rotation = new Quaternion(0f, 0f, 0f, 0f);
 
         connection.Player.Mount?.UpdatePosition(position, rotation);
         connection.Player.UpdatePosition(position, rotation);

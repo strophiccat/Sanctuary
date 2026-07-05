@@ -43,7 +43,6 @@ public static class PacketTunneledClientPacketHandler
             PacketClientIsReady.OpCode => PacketClientIsReadyHandler.HandlePacket(connection),
             BaseChatPacket.OpCode => BaseChatPacketHandler.HandlePacket(connection, reader),
             BaseCommandPacket.OpCode => BaseCommandPacketHandler.HandlePacket(connection, reader),
-            BaseCombatPacket.OpCode => BaseCombatPacketHandler.HandlePacket(connection, reader),
             BasePlayerUpdatePacket.OpCode => BasePlayerUpdatePacketHandler.HandlePacket(connection, reader),
             BaseAbilityPacket.OpCode => BaseAbilityPacketHandler.HandlePacket(connection, reader),
             BaseInventoryPacket.OpCode => BaseInventoryPacketHandler.HandlePacket(connection, reader),
@@ -67,26 +66,13 @@ public static class PacketTunneledClientPacketHandler
             _ => false
         };
 
+#if DEBUG
         if (!handled)
         {
-            var packetName = "Unknown";
-
-            try
-            {
-                reader.Reset();
-                packetName = reader.ReadTunneledPacketName();
-            }
-            catch
-            {
-                // Keep the original failure visible below.
-            }
-
-            _logger.LogDebug(
-                "{connection} received unhandled TunneledClient packet. ( Packet: {packetName}, Data: {data} )",
-                connection,
-                packetName,
-                Convert.ToHexString(packet.Payload));
+            reader.Reset();
+            System.Diagnostics.Debug.WriteLine(reader.ReadTunneledPacketName(), "TunneledClient");
         }
+#endif
 
         return handled;
     }

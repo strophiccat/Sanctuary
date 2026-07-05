@@ -28,23 +28,10 @@ public static class BaseAbilityPacketHandler
             return false;
         }
 
-        var handled = opCode switch
+        return opCode switch
         {
             AbilityPacketClientRequestStartAbility.OpCode => AbilityPacketClientRequestStartAbilityHandler.HandlePacket(connection, reader.Span),
-            AbilityPacketRequestAbilityDefinition.OpCode => AbilityPacketRequestAbilityDefinitionHandler.HandlePacket(connection, reader.Span),
             _ => false
         };
-
-        if (!handled)
-        {
-            _logger.LogInformation(
-                "{connection} received unhandled ability packet. ( SubOpCode: {subOpCode}, Length: {length}, Data: {data} )",
-                connection,
-                opCode,
-                reader.Span.Length,
-                Convert.ToHexString(reader.Span));
-        }
-
-        return handled;
     }
 }

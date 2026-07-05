@@ -21,10 +21,7 @@ public class GatewayServer : UdpManager<GatewayConnection>
 
     public override bool OnConnectRequest(UdpConnection udpConnection)
     {
-        _logger.LogInformation(
-            "{connection} connected from {ip}.",
-            udpConnection,
-            udpConnection.EndPoint.Address);
+        _logger.LogInformation("{connection} connected.", udpConnection);
 
         return true;
     }

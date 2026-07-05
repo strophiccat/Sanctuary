@@ -26,7 +26,7 @@ public class LoginConnection : UdpConnection
 
     public override void OnConnectComplete()
     {
-        _logger.LogInformation("{connection} connected from {ip}.", this, EndPoint.Address);
+        _logger.LogInformation("{connection} connected.", this);
 
         var gatewayLoginRequest = new GatewayLoginRequest();
 
@@ -45,7 +45,7 @@ public class LoginConnection : UdpConnection
             ? OtherSideDisconnectReason
             : DisconnectReason;
 
-        _logger.LogInformation("{connection} disconnected from {ip}. {reason}", this, EndPoint.Address, reason);
+        _logger.LogInformation("{connection} disconnected. {reason}", this, reason);
     }
 
     public override void OnRoutePacket(Span<byte> data)

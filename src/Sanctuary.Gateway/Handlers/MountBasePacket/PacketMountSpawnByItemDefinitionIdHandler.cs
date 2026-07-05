@@ -37,24 +37,12 @@ public static class PacketMountSpawnByItemDefinitionIdHandler
         if (!_resourceManager.ClientItemDefinitions.TryGetValue(packet.ItemDefinitionId, out var clientItemDefinition))
             return true;
 
-        var matchingMounts = connection.Player.Mounts
-            .Where(x => x.Definition == clientItemDefinition.Param1)
-            .ToList();
+        var mountInfo = connection.Player.Mounts.LastOrDefault(x => x.Definition == clientItemDefinition.Param1);
 
-        if (matchingMounts.Count == 0)
+        if (mountInfo is null)
             return true;
 
-        if (matchingMounts.Count > 1)
-        {
-            _logger.LogWarning(
-                "Multiple owned mounts matched spawn request. PlayerGuid={playerGuid}, ItemDefinitionId={itemDefinitionId}, MountDefinitionId={mountDefinitionId}, MatchCount={matchCount}",
-                connection.Player.Guid,
-                packet.ItemDefinitionId,
-                clientItemDefinition.Param1,
-                matchingMounts.Count);
-        }
-
-        PacketMountSpawnHandler.SpawnMount(connection, matchingMounts[0]);
+        PacketMountSpawnHandler.SpawnMount(connection, mountInfo);
 
         return true;
     }

@@ -17,9 +17,7 @@ using Sanctuary.Database;
 using Sanctuary.Database.Entities;
 using Sanctuary.Game;
 using Sanctuary.Game.Entities;
-using Sanctuary.Game.Zones;
 using Sanctuary.Gateway.Handlers;
-using Sanctuary.Gateway.Services;
 using Sanctuary.Packet;
 using Sanctuary.Packet.Common;
 using Sanctuary.UdpLibrary;
@@ -48,12 +46,6 @@ public class GatewayConnection : UdpConnection
 
     public string Locale { get; set; } = "en_US";
 
-    public ulong UserId { get; set; }
-
-    public string Username { get; set; } = string.Empty;
-
-    public Dictionary<int, int> QuickItemCarouselAliases { get; } = new();
-
     public GatewayConnection(ILogger<GatewayConnection> logger, IOptions<GatewayServerOptions> options, IZoneManager zoneManager, LoginClient loginClient, GatewayServer gatewayServer, IResourceManager resourceManager, IServiceProvider serviceProvider, IDbContextFactory<DatabaseContext> dbContextFactory, SocketAddress socketAddress, int connectCode) : base(gatewayServer, socketAddress, connectCode)
     {
         _logger = logger;
@@ -79,7 +71,7 @@ public class GatewayConnection : UdpConnection
             ? OtherSideDisconnectReason
             : DisconnectReason;
 
-        _logger.LogInformation("{connection} disconnected from {ip}. {reason}", this, EndPoint.Address, reason);
+        _logger.LogInformation("{connection} disconnected. {reason}", this, reason);
 
         // Just in case check if player is null.
         if (Player is null)
@@ -204,7 +196,6 @@ public class GatewayConnection : UdpConnection
         }
 
         Player = player;
-        Player.IsAdmin = dbCharacter.User?.IsAdmin ?? false;
 
         // Start - ClientPcData
 
@@ -236,26 +227,6 @@ public class GatewayConnection : UdpConnection
             ? new Quaternion(dbCharacter.RotationX.Value, 0f, dbCharacter.RotationZ.Value, 0f)
             : startingZone.SpawnRotation;
 
-        if (!IsValidStartingZonePosition(position))
-        {
-            _logger.LogWarning(
-                "Character had invalid saved position; using starting zone spawn. ( CharacterId: {characterId}, Position: {position} )",
-                dbCharacter.Id,
-                position);
-
-            position = startingZone.SpawnPosition;
-            rotation = startingZone.SpawnRotation;
-        }
-        else if (!IsFinite(rotation))
-        {
-            _logger.LogWarning(
-                "Character had invalid saved rotation; using starting zone spawn rotation. ( CharacterId: {characterId}, Rotation: {rotation} )",
-                dbCharacter.Id,
-                rotation);
-
-            rotation = startingZone.SpawnRotation;
-        }
-
         Player.UpdatePosition(position, rotation);
 
         Player.Name.FirstName = dbCharacter.FirstName;
@@ -264,6 +235,7 @@ public class GatewayConnection : UdpConnection
         Player.Coins = dbCharacter.Coins;
 
         Player.Birthday = dbCharacter.Created;
+        Player.PlayTime = dbCharacter.PlayTime;
 
         Player.MembershipStatus = dbCharacter.MembershipStatus;
         Player.ShowMemberNagScreen = _options.ShowMemberNagScreen;
@@ -288,7 +260,6 @@ public class GatewayConnection : UdpConnection
             clientPcProfile.ButtonImageSet = profileData.ButtonImageSet;
 
             clientPcProfile.MembersOnly = profileData.MembersOnly;
-            clientPcProfile.IsCombat = GetProfileUiId(dbProfile.Id);
 
             clientPcProfile.ItemClasses = profileData.ItemClasses;
 
@@ -328,69 +299,15 @@ public class GatewayConnection : UdpConnection
 
         Player.ActiveProfileId = dbCharacter.ActiveProfileId;
 
-        if (!Player.Profiles.Any(x => x.Id == Player.ActiveProfileId))
-        {
-            var fallbackProfile = Player.Profiles.FirstOrDefault();
-
-            if (fallbackProfile is null && _resourceManager.Profiles.TryGetValue(1, out var adventurerProfileData))
-            {
-                fallbackProfile = new ClientPcProfile
-                {
-                    Id = 1,
-                    NameId = adventurerProfileData.NameId,
-                    DescriptionId = adventurerProfileData.DescriptionId,
-                    Type = adventurerProfileData.Type,
-                    Icon = adventurerProfileData.Icon,
-                    AbilityBgImageSet = adventurerProfileData.AbilityBgImageSet,
-                    BadgeImageSet = adventurerProfileData.BadgeImageSet,
-                    ButtonImageSet = adventurerProfileData.ButtonImageSet,
-                    MembersOnly = adventurerProfileData.MembersOnly,
-                    IsCombat = GetProfileUiId(1),
-                    ItemClasses = adventurerProfileData.ItemClasses,
-                    Rank = 1,
-                    RankPercent = 0
-                };
-
-                Player.Profiles.Add(fallbackProfile);
-                Player.ProfileTypes.Add(new ProfileTypeEntry
-                {
-                    Type = adventurerProfileData.Type,
-                    ProfileId = fallbackProfile.Id
-                });
-            }
-
-            if (fallbackProfile is null)
-            {
-                _logger.LogError(
-                    "Failed to load any valid profile for character. CharacterId: {characterId}, ActiveProfileId: {activeProfileId}",
-                    dbCharacter.Id,
-                    dbCharacter.ActiveProfileId);
-                return false;
-            }
-
-            _logger.LogWarning(
-                "Character active profile was missing or invalid. CharacterId: {characterId}, ActiveProfileId: {activeProfileId}, FallbackProfileId: {fallbackProfileId}",
-                dbCharacter.Id,
-                dbCharacter.ActiveProfileId,
-                fallbackProfile.Id);
-
-            Player.ActiveProfileId = fallbackProfile.Id;
-        }
-
         foreach (var dbItem in dbCharacter.Items)
         {
-            var clientItem = new ClientItem
+            Player.Items.Add(new ClientItem
             {
                 Id = dbItem.Id,
                 Tint = dbItem.Tint,
                 Count = dbItem.Count,
                 Definition = dbItem.Definition
-            };
-
-            if (_resourceManager.ClientItemDefinitions.TryGetValue(dbItem.Definition, out var clientItemDefinition))
-                ItemActionBarService.ApplyActionBarItemCapabilities(clientItem, clientItemDefinition);
-
-            Player.Items.Add(clientItem);
+            });
         }
 
         Player.Gender = dbCharacter.Gender;
@@ -414,24 +331,20 @@ public class GatewayConnection : UdpConnection
             });
         }
 
-        var clientActionBar = new ClientActionBar { Id = ItemActionBarService.ActionBarId };
+        // TODO
 
-        for (var slot = 0; slot < ItemActionBarService.SlotCount; slot++)
-            clientActionBar.Slots.Add(slot, ItemActionBarService.CreateEmptySlot());
+        // Start - Store on DB
+        var clientActionBar = new ClientActionBar();
+
+        clientActionBar.Id = 2; // ItemActionBar
+
+        clientActionBar.Slots.Add(0, new ActionBarSlot() { IsEmpty = true });
+        clientActionBar.Slots.Add(1, new ActionBarSlot() { IsEmpty = true });
+        clientActionBar.Slots.Add(2, new ActionBarSlot() { IsEmpty = true });
+        clientActionBar.Slots.Add(3, new ActionBarSlot() { IsEmpty = true });
 
         Player.ActionBars.Add(clientActionBar.Id, clientActionBar);
-
-        var loadedItemActionBarSlots = ItemActionBarService.LoadPersistedSlotsFromDatabase(
-            this,
-            _resourceManager,
-            _dbContextFactory,
-            _logger,
-            sendUpdates: false);
-
-        _logger.LogInformation(
-            "{connection} loaded persisted quick-item action bar slots during login. ( Count: {count} )",
-            this,
-            loadedItemActionBarSlots);
+        // End - Store on DB
 
         foreach (var dbTitle in dbCharacter.Titles)
         {
@@ -453,15 +366,6 @@ public class GatewayConnection : UdpConnection
 
         foreach (var dbFriend in dbCharacter.Friends)
         {
-            if (dbFriend.FriendCharacter is null)
-            {
-                _logger.LogWarning(
-                    "Skipping friend row without character while loading player. CharacterId: {characterId}, FriendCharacterId: {friendCharacterId}",
-                    dbCharacter.Id,
-                    dbFriend.FriendCharacterId);
-                continue;
-            }
-
             var friendData = new FriendData
             {
                 Name =
@@ -490,15 +394,6 @@ public class GatewayConnection : UdpConnection
 
         foreach (var dbIgnore in dbCharacter.Ignores)
         {
-            if (dbIgnore.IgnoreCharacter is null)
-            {
-                _logger.LogWarning(
-                    "Skipping ignore row without character while loading player. CharacterId: {characterId}, IgnoreCharacterId: {ignoreCharacterId}",
-                    dbCharacter.Id,
-                    dbIgnore.IgnoreCharacterId);
-                continue;
-            }
-
             var ignoreData = new IgnoreData
             {
                 Guid = GuidHelper.GetPlayerGuid(dbIgnore.IgnoreCharacterId),
@@ -523,16 +418,6 @@ public class GatewayConnection : UdpConnection
 
             foreach (var dbGuildMember in dbGuild.Members)
             {
-                if (dbGuildMember.Character is null)
-                {
-                    _logger.LogWarning(
-                        "Skipping guild member without character while loading guild data. GuildId: {guildId}, GuildMemberId: {guildMemberId}, LoginCharacterId: {characterId}",
-                        dbGuild.Id,
-                        dbGuildMember.Id,
-                        dbCharacter.Id);
-                    continue;
-                }
-
                 var memberGuid = GuidHelper.GetPlayerGuid(dbGuildMember.Id);
                 var guildMember = new GuildMember
                 {
@@ -556,7 +441,7 @@ public class GatewayConnection : UdpConnection
                 guildData.Members[memberGuid] = guildMember;
             }
 
-            player.GuildData = guildData;
+            Player.GuildData = guildData;
         }
 
         return true;
@@ -564,99 +449,54 @@ public class GatewayConnection : UdpConnection
 
     private void SavePlayerToDatabase()
     {
-        try
+        using var dbContext = _dbContextFactory.CreateDbContext();
+
+        var dbCharacter = dbContext.Characters.FirstOrDefault(x => x.Id == GuidHelper.GetPlayerId(Player.Guid));
+
+        if (dbCharacter is null)
         {
-            using var dbContext = _dbContextFactory.CreateDbContext();
-
-            var dbCharacter = dbContext.Characters.FirstOrDefault(x => x.Id == GuidHelper.GetPlayerId(Player.Guid));
-
-            if (dbCharacter is null)
-            {
-                _logger.LogError("Failed to get character data from database.");
-                return;
-            }
-
-            // Start - ClientPcData
-
-            Vector4 position;
-            Quaternion rotation;
-
-            if (Player.Zone == _zoneManager.StartingZone)
-            {
-                position = Player.Position;
-                rotation = Player.Rotation;
-            }
-            else
-            {
-                position = Player.StartingZonePosition;
-                rotation = Player.StartingZoneRotation;
-            }
-
-            if (!IsValidStartingZonePosition(position))
-            {
-                _logger.LogWarning(
-                    "Skipping invalid character position while saving; using starting zone spawn. ( CharacterGuid: {characterGuid}, Position: {position} )",
-                    Player.Guid,
-                    position);
-
-                position = _zoneManager.StartingZone.SpawnPosition;
-                rotation = _zoneManager.StartingZone.SpawnRotation;
-            }
-            else if (!IsFinite(rotation))
-            {
-                _logger.LogWarning(
-                    "Skipping invalid character rotation while saving; using starting zone spawn rotation. ( CharacterGuid: {characterGuid}, Rotation: {rotation} )",
-                    Player.Guid,
-                    rotation);
-
-                rotation = _zoneManager.StartingZone.SpawnRotation;
-            }
-
-            dbCharacter.PositionX = position.X;
-            dbCharacter.PositionY = position.Y;
-            dbCharacter.PositionZ = position.Z;
-
-            dbCharacter.RotationX = rotation.X;
-            dbCharacter.RotationZ = rotation.Z;
-
-            dbCharacter.ActiveProfileId = Player.ActiveProfileId;
-
-            dbCharacter.ActiveTitleId = Player.ActiveTitle;
-
-            // End ClientPcData
-
-            dbCharacter.ChatBubbleForegroundColor = Player.ChatBubbleForegroundColor;
-            dbCharacter.ChatBubbleBackgroundColor = Player.ChatBubbleBackgroundColor;
-            dbCharacter.ChatBubbleSize = Player.ChatBubbleSize;
-
-            if (dbContext.ChangeTracker.HasChanges())
-                dbContext.SaveChanges();
+            _logger.LogError("Failed to get character data from database.");
+            return;
         }
-        catch (Exception ex)
+
+        // Start - ClientPcData
+
+        Vector4 position;
+        Quaternion rotation;
+
+        if (Player.Zone == _zoneManager.StartingZone)
         {
-            _logger.LogError(ex, "Failed to save character data to database. ( CharacterGuid: {characterGuid} )", Player?.Guid);
+            position = Player.Position;
+            rotation = Player.Rotation;
         }
-    }
+        else
+        {
+            position = Player.StartingZonePosition;
+            rotation = Player.StartingZoneRotation;
+        }
 
-    private bool IsValidStartingZonePosition(Vector4 position)
-    {
-        return IsFinite(position) && _zoneManager.StartingZone.GetTileFromPosition(position) != ZoneTile.Empty;
-    }
+        dbCharacter.PositionX = float.IsNaN(position.X) ? null : position.X;
+        dbCharacter.PositionY = float.IsNaN(position.Y) ? null : position.Y;
+        dbCharacter.PositionZ = float.IsNaN(position.Z) ? null : position.Z;
 
-    private static bool IsFinite(Vector4 value)
-    {
-        return float.IsFinite(value.X)
-            && float.IsFinite(value.Y)
-            && float.IsFinite(value.Z)
-            && float.IsFinite(value.W);
-    }
+        dbCharacter.RotationX = float.IsNaN(rotation.X) ? null : rotation.X;
+        dbCharacter.RotationZ = float.IsNaN(rotation.Z) ? null : rotation.Z;
 
-    private static bool IsFinite(Quaternion value)
-    {
-        return float.IsFinite(value.X)
-            && float.IsFinite(value.Y)
-            && float.IsFinite(value.Z)
-            && float.IsFinite(value.W);
+        dbCharacter.ActiveProfileId = Player.ActiveProfileId;
+
+        dbCharacter.ActiveTitleId = Player.ActiveTitle;
+
+        if (dbCharacter.LastLogin.HasValue)
+            dbCharacter.PlayTime += (int)(DateTimeOffset.UtcNow - dbCharacter.LastLogin.Value).TotalMinutes;
+
+        // End ClientPcData
+
+        dbCharacter.ChatBubbleForegroundColor = Player.ChatBubbleForegroundColor;
+        dbCharacter.ChatBubbleBackgroundColor = Player.ChatBubbleBackgroundColor;
+        dbCharacter.ChatBubbleSize = Player.ChatBubbleSize;
+
+        if (dbContext.SaveChanges() <= 0)
+            _logger.LogError("Failed to save character data to database");
     }
 
     public void SendInitializationParameters()
@@ -790,30 +630,6 @@ public class GatewayConnection : UdpConnection
 
             guildPlayer.SendTunneled(guildMemberStatusUpdatePacket);
         }
-    }
-
-    private static int GetProfileUiId(int profileId)
-    {
-        return profileId switch
-        {
-            1 => 1, // Adventurer
-            2 => 2, // Ninja
-            4 => 3, // Postman
-            11 => 4, // Medic
-            12 => 5, // Wizard
-            14 => 6, // Miner
-            16 => 7, // Blacksmith
-            32 => 8, // Warrior
-            35 => 9, // Archer
-            48 => 10, // Kart Driver
-            49 => 11, // Demo Derby Driver
-            43 => 12, // Brawler
-            45 => 13, // Chef
-            120 => 15, // Card Duelist
-            52 => 16, // Soccer Star
-            137 => 17, // Fisherman
-            _ => 0
-        };
     }
 
     #region Packet Compression

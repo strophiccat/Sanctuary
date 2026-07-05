@@ -40,8 +40,6 @@ public static class PacketTunneledClientWorldPacketHandler
         var handled = opCode switch
         {
             BaseCommandPacket.OpCode => BaseCommandPacketHandler.HandlePacket(connection, reader),
-            BaseCombatPacket.OpCode => BaseCombatPacketHandler.HandlePacket(connection, reader),
-            BaseAbilityPacket.OpCode => BaseAbilityPacketHandler.HandlePacket(connection, reader),
             PacketWorldTeleportRequest.OpCode => PacketWorldTeleportRequestHandler.HandlePacket(connection, packet.Payload),
             PacketBaseInGamePurchase.OpCode => PacketBaseInGamePurchaseHandler.HandlePacket(connection, reader),
             PacketSetLocale.OpCode => PacketSetLocaleHandler.HandlePacket(connection, packet.Payload),
@@ -53,26 +51,13 @@ public static class PacketTunneledClientWorldPacketHandler
             _ => false
         };
 
+#if DEBUG
         if (!handled)
         {
-            var packetName = "Unknown";
-
-            try
-            {
-                reader.Reset();
-                packetName = reader.ReadTunneledPacketName();
-            }
-            catch
-            {
-                // Keep the original failure visible below.
-            }
-
-            _logger.LogDebug(
-                "{connection} received unhandled TunneledClientWorld packet. ( Packet: {packetName}, Data: {data} )",
-                connection,
-                packetName,
-                Convert.ToHexString(packet.Payload));
+            reader.Reset();
+            System.Diagnostics.Debug.WriteLine(reader.ReadTunneledPacketName(), "TunneledClientWorld");
         }
+#endif
 
         return handled;
     }

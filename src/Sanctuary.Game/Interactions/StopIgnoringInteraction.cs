@@ -44,7 +44,6 @@ public class StopIgnoringInteraction : IInteraction
 
         player.Ignores.RemoveAll(x => x.Guid == otherPlayer.Guid);
 
-
         var ignoreRemovePacket = new IgnoreRemovePacket
         {
             Guid = otherPlayer.Guid

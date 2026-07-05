@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Diagnostics;
 using System.Linq;
 
 using Microsoft.EntityFrameworkCore;
@@ -43,10 +42,11 @@ public static class CommandPacketConfirmFriendResponseHandler
 
         _logger.LogTrace("Received {name} packet. ( {packet} )", nameof(CommandPacketConfirmFriendResponse), packet);
 
-        if (!_zoneManager.TryGetPlayer(packet.Guid, out var player))
+        if (!connection.Player.IncomingFriendRequests.TryRemove(packet.Guid))
             return true;
 
-        Debug.WriteLine($"Inviter: {player.Name.FullName}, Invitee: {connection.Player.Name.FullName}");
+        if (!_zoneManager.TryGetPlayer(packet.Guid, out var player))
+            return true;
 
         var friendMessagePacket = new FriendMessagePacket();
 
@@ -88,35 +88,20 @@ public static class CommandPacketConfirmFriendResponseHandler
         if (inviterDbCharacter is null || inviteeDbCharacter is null)
             return;
 
-        var inviterAlreadyHasInvitee = dbContext.Friends.Any(x =>
-            x.CharacterId == inviterDbCharacter.Id &&
-            x.FriendCharacterId == inviteeDbCharacter.Id);
-
-        var inviteeAlreadyHasInviter = dbContext.Friends.Any(x =>
-            x.CharacterId == inviteeDbCharacter.Id &&
-            x.FriendCharacterId == inviterDbCharacter.Id);
-
-        if (!inviterAlreadyHasInvitee)
+        inviterDbCharacter.Friends.Add(new DbFriend
         {
-            inviterDbCharacter.Friends.Add(new DbFriend
-            {
-                FriendCharacterId = inviteeDbCharacter.Id
-            });
-        }
+            FriendCharacterId = inviteeDbCharacter.Id
+        });
 
-        if (!inviteeAlreadyHasInviter)
+        inviteeDbCharacter.Friends.Add(new DbFriend
         {
-            inviteeDbCharacter.Friends.Add(new DbFriend
-            {
-                FriendCharacterId = inviterDbCharacter.Id
-            });
-        }
+            FriendCharacterId = inviterDbCharacter.Id
+        });
 
-        if (dbContext.ChangeTracker.HasChanges() && dbContext.SaveChanges() <= 0)
+        if (dbContext.SaveChanges() <= 0)
             return;
 
         // Inviter
-        if (!inviter.Friends.Any(x => x.Guid == invitee.Guid))
         {
             var inviterFriendData = new FriendData
             {
@@ -150,7 +135,6 @@ public static class CommandPacketConfirmFriendResponseHandler
         }
 
         // Invitee
-        if (!invitee.Friends.Any(x => x.Guid == inviter.Guid))
         {
             var inviteeFriendData = new FriendData
             {

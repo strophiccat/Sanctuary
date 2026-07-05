@@ -60,10 +60,10 @@ internal class UdpReliableChannel
     {
         public UdpClockStamp FirstTimeStamp;
         public UdpClockStamp LastTimeStamp;
-        public long ReliableId;
         public LogicalPacket? Parent;
         public int? DataPtr;
         public int DataLen;
+        public long ReliableId;
     }
 
     private struct IncomingQueueEntry
@@ -463,6 +463,10 @@ internal class UdpReliableChannel
                             if (readyPtr < readyEnd)
                             {
                                 ReadyQueue[readyPtr] = entry;
+                                // remember this entry's true reliable id (its ring position),
+                                // mirroring the original library which stored pointers into the
+                                // physical-packet ring and recovered the id from the offset.
+                                ReadyQueue[readyPtr].ReliableId = i;
                                 readyPtr++;
                             }
                             else
@@ -515,6 +519,11 @@ internal class UdpReliableChannel
                     if (entry.DataPtr.Value != 0 || entry.DataLen != entry.Parent.GetDataLen())
                         fragment = true;
 
+                    // use the entry's true reliable id (captured from its ring position when it
+                    // was queued). Deriving the id from the ready-queue index instead is only
+                    // correct when the ready queue is a gapless prefix of the outstanding window;
+                    // under partial resends the queue is compacted, which would otherwise stamp the
+                    // payload with the wrong sequence number and duplicate data under a fresh id.
                     var reliableId = entry.ReliableId;
 
                     // prep the actual packet and send it
@@ -888,7 +897,6 @@ internal class UdpReliableChannel
             entry.Parent = LogicalPacketList[0];
             entry.FirstTimeStamp = 0;
             entry.LastTimeStamp = 0;
-            entry.ReliableId = ReliableOutgoingId;
 
             // calculate how much we can send based on our starting position (mFragmentNextPos) in the logical packet.
             // if we can't send it the rest of data to end of packet, then send the fragment portion and addref, otherwise send the whole thing and pop the logical packet

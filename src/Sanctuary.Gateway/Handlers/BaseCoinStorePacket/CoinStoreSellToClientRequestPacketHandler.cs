@@ -10,7 +10,6 @@ using Sanctuary.Core.IO;
 using Sanctuary.Database;
 using Sanctuary.Database.Entities;
 using Sanctuary.Game;
-using Sanctuary.Gateway.Services;
 using Sanctuary.Packet;
 using Sanctuary.Packet.Common;
 using Sanctuary.Packet.Common.Attributes;
@@ -164,9 +163,7 @@ public static class CoinStoreSellToClientRequestPacketHandler
                 Id = dbItem.Id,
                 Tint = dbItem.Tint,
                 Count = dbItem.Count,
-                Definition = dbItem.Definition,
-                ActivateEnabled = clientItemDefinition.ActivatableAbilityId > 0,
-                AbilityCount = clientItemDefinition.ActivatableAbilityId > 0 ? 1 : 0
+                Definition = dbItem.Definition
             };
 
             connection.Player.Items.Add(clientItem);
@@ -179,6 +176,8 @@ public static class CoinStoreSellToClientRequestPacketHandler
             using var writer = new PacketWriter();
 
             clientItem.Serialize(writer);
+
+            clientItemDefinition.Serialize(writer);
 
             var clientUpdatePacketItemAdd = new ClientUpdatePacketItemAdd();
 
@@ -222,15 +221,6 @@ public static class CoinStoreSellToClientRequestPacketHandler
         connection.SendTunneled(coinStoreTransactionCompletePacket);
 
         connection.Player.CoinStoreTransactions.Add(coinStoreTransactionCompletePacket.TransactionRecord);
-
-        ItemActionBarService.ReplayOwnedCarouselItemsForMarketplaceOpen(connection, _resourceManager, _logger);
-
-        _logger.LogInformation(
-            "{connection} refreshed quick-item carousel after coin store purchase. ( ItemGuid: {itemGuid}, Definition: {definition}, Count: {count} )",
-            connection,
-            clientItem.Id,
-            clientItem.Definition,
-            clientItem.Count);
 
         return true;
     }

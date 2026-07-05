@@ -11,7 +11,6 @@ using Sanctuary.Game;
 using Sanctuary.Packet;
 using Sanctuary.Packet.Common;
 using Sanctuary.Packet.Common.Attributes;
-using Sanctuary.Packet.Common.Chat;
 
 namespace Sanctuary.Gateway.Handlers;
 
@@ -46,63 +45,44 @@ public static class CommandPacketAddFriendRequestHandler
         var dbCharacter = dbContext.Characters.FirstOrDefault(x => x.FullName == packet.Name);
 
         if (dbCharacter is null)
-        {
-            SendSystemMessage(connection, "Player not found.");
             return true;
-        }
 
-        var requesterCharacterId = GuidHelper.GetPlayerId(connection.Player.Guid);
-        var targetCharacterId = dbCharacter.Id;
-        var targetGuid = GuidHelper.GetPlayerGuid(targetCharacterId);
-
-        var requesterIsIgnoringTarget = dbContext.Ignores.Any(x =>
-            x.CharacterId == requesterCharacterId &&
-            x.IgnoreCharacterId == targetCharacterId);
-
-        if (requesterIsIgnoringTarget)
-        {
-            SendSystemMessage(connection, "You cannot add a player you are ignoring.");
-            return true;
-        }
+        var targetGuid = GuidHelper.GetPlayerGuid(dbCharacter.Id);
 
         if (!_zoneManager.TryGetPlayer(targetGuid, out var player))
         {
-            SendSystemMessage(connection, "That player is not online.");
+            // TODO: Implement proper "friend target offline"
+
             return true;
         }
+
+        if (player.Guid == connection.Player.Guid)
+            return true;
 
         if (player.Ignores.Any(x => x.Guid == connection.Player.Guid))
-        {
-            SendSystemMessage(connection, "You cannot add a player who is ignoring you.");
             return true;
-        }
 
-        var friendMessagePacket = new FriendMessagePacket
-        {
-            Type = FriendMessageType.FriendAddRequested,
-            Guid = player.Guid,
-            Name = player.Name
-        };
+        if (player.Friends.Any(x => x.Guid == connection.Player.Guid))
+            return true;
+
+        player.IncomingFriendRequests.TryAdd(connection.Player.Guid);
+
+        var friendMessagePacket = new FriendMessagePacket();
+
+        friendMessagePacket.Type = FriendMessageType.FriendAddRequested;
+
+        friendMessagePacket.Guid = player.Guid;
+        friendMessagePacket.Name = player.Name;
 
         connection.SendTunneled(friendMessagePacket);
 
-        var commandPacketConfirmFriendRequest = new CommandPacketConfirmFriendRequest
-        {
-            Guid = connection.Player.Guid,
-            Name = connection.Player.Name
-        };
+        var commandPacketConfirmFriendRequest = new CommandPacketConfirmFriendRequest();
+
+        commandPacketConfirmFriendRequest.Guid = connection.Player.Guid;
+        commandPacketConfirmFriendRequest.Name = connection.Player.Name;
 
         player.SendTunneled(commandPacketConfirmFriendRequest);
 
         return true;
-    }
-
-    private static void SendSystemMessage(GatewayConnection connection, string message)
-    {
-        connection.Player.SendTunneled(new PacketChat
-        {
-            Channel = ChatChannel.System,
-            Message = message
-        });
     }
 }

@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 
 using Microsoft.Extensions.Logging;
 
@@ -16,21 +15,15 @@ public class GatewayServer : UdpManager<GatewayConnection>
     private readonly ILogger _logger;
     private readonly IResourceManager _resourceManager;
 
-    public GatewayServer(ILogger<GatewayServer> logger, IResourceManager resourceManager, UdpParams udpParams, IServiceProvider serviceProvider)
-        : base(udpParams, serviceProvider)
+    public GatewayServer(ILogger<GatewayServer> logger, IResourceManager resourceManager, UdpParams udpParams, IServiceProvider serviceProvider) : base(udpParams, serviceProvider)
     {
         _logger = logger;
         _resourceManager = resourceManager;
     }
 
-    public IReadOnlyCollection<GatewayConnection> Connections => ConnectionList;
-
     public override bool OnConnectRequest(UdpConnection udpConnection)
     {
-        _logger.LogInformation(
-            "{connection} connected from {ip}.",
-            udpConnection,
-            udpConnection.EndPoint.Address);
+        _logger.LogInformation("{connection} connected.", udpConnection);
 
         return true;
     }
@@ -52,6 +45,7 @@ public class GatewayServer : UdpManager<GatewayConnection>
         packetNotice.ReasonId = 418992;
 
         var packetTunneled = new PacketTunneledClientPacket();
+
         packetTunneled.Payload = packetNotice.Serialize();
 
         var packetData = packetTunneled.Serialize();

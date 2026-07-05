@@ -2,6 +2,7 @@ using System.Globalization;
 
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.HttpLogging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -43,6 +44,11 @@ builder.Logging.ClearProviders();
 
 builder.Logging.SetMinimumLevel(LogLevel.Debug);
 
+builder.Services.AddHttpLogging(logging =>
+{
+    logging.LoggingFields = HttpLoggingFields.All;
+});
+
 #endif
 
 var nlogConfigFile = builder.Environment.IsDevelopment()
@@ -52,6 +58,12 @@ var nlogConfigFile = builder.Environment.IsDevelopment()
 builder.Logging.AddNLog(nlogConfigFile);
 
 var app = builder.Build();
+
+#if DEBUG
+
+app.UseHttpLogging();
+
+#endif
 
 // Configure the HTTP request pipeline.
 
